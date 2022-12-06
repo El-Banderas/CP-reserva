@@ -1,0 +1,7 @@
+O que é suposto fazer:
+
+0    1          2         3         4    5    6 7 <- Array A
+
+0+1  0+1+2    1+2+3 ....                  <- Array C
+
+E cada conta deve ser feita numa thread à parte.
