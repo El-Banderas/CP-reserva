@@ -5,3 +5,34 @@ O que é suposto fazer:
 0+1  0+1+2    1+2+3 ....                  <- Array C
 
 E cada conta deve ser feita numa thread à parte.
+
+---
+	stencilKernel <<< NUM_THREADS_PER_BLOCK, NUM_BLOCKS >>> (da, dc);
+Isto faz a função stencilKernel com os argumentos da e dc, com aqueles parâmetros.
+ 
+
+---
+
+O que isto é?
+
+Cada bloco é uma espécie de "core", que processa. Cada bloco tem threads, e o suposto aqui é, cada thread faz uma coisa simples.
+Nós estamos a definir o tamanho do problema em função dos recursos que temos. 
+Então, o número total de elementos no array é igual ao número de blocos vezes o número de threads.
+Exemplo do array:
+
+    Bloco 1    | Bloco 2   | Bloco 3 ...
+nº de threads  |
+por bloco =    | 256 elem  | 256 elem
+nº de elementos| 
+
+Total = nº de blocos * nº de threads por bloco
+
+
+Se aumentar o tamanho para o dobro de elementos:
+
+O cuda malloc tem sempre o mesmo tempo de execução;
+A execução não passa para o dobro, porque conseguem fazer bem;
+A transferência de dados demora o dobro, porque é o bottleneck.
+
+As threads aqui (GPU) não são pesadas, ao contrário do CPU. O GPU precisa mesmo de muitas threads para ter eficiência.
+Aqui devemos, por isso, priveligiar o número de threads.
