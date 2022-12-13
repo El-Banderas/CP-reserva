@@ -6,20 +6,30 @@
 
 using namespace std;
 
+// O id varia entre 0 e o comprimento de a.
+
 __global__ void stencilKernel(float *a, float *c)
 {
     int id = blockIdx.x * blockDim.x + threadIdx.x;
     int lid = threadIdx.x;                            // local thread id within a block
-    __shared__ float temp[NUM_THREADS_PER_BLOCK + 4]; // para o das pontas
+    __shared__ float temp[NUM_THREADS_PER_BLOCK + 4]; // para o das pontas, porque o temp tem de ter:
+    // n1 n2 nMesmo nMesmo ... nMesmo n3 n4
+    // Porque para calcular os valores precisas sempre de 2 em cada ponta.
     temp[lid] = a[id];
-    // if ...
+    if (lid == 1)
+    {
+        temp[0] = a[NUM_BLOCKS - 2];
+        temp[1] = a[NUM_BLOCKS - 1];
+    }
     __syncthreads(); // wait for all threads within a block
     // Temos de escrever todos os valores antes de avançar para o cálculo do c
     c[id] = 0;
     for (int n = -2; n <= 2; n++)
     {
         if ((id + n >= 0) && (id + n < SIZE))
-            c[id] += a[id + n]; // c[id] += temp[??? + n]
+            // Tem de ser mais 2, porque o array tmp começa com os 2 primeiros valores das pontas.
+            // O lid é necessário para ires buscar ao array temp não as coisas do primeiro bloco, mas as do seguinte.
+            c[id] += temp[n + lid + 2];
     }
 }
 
