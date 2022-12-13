@@ -20,6 +20,8 @@ __global__ void stencilKernel(float *a, float *c)
     {
         temp[0] = a[NUM_BLOCKS - 2];
         temp[1] = a[NUM_BLOCKS - 1];
+        temp[NUM_THREADS_PER_BLOCK + 1] = a[id + 1];
+        temp[NUM_THREADS_PER_BLOCK + 2] = a[id + 2];
     }
     __syncthreads(); // wait for all threads within a block
     // Temos de escrever todos os valores antes de avançar para o cálculo do c
