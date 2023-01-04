@@ -1,0 +1,129 @@
+Complexidades por ciclo:
+1 for - O(1)
+2 - for
+O(N), inserir no array tem custo O(1)
+3 - for
+O(16 * custo de sort( no pior caso N elementos) )
+4 - for
+O(16 * N) Porque para cada entrada, tem de ver todas os valores dessa entrada, que podem ser N
+ii
+São as 3 e 4, na 3 dá para fazer loop_unrolling, diminuindo, mas pouco, o número de instruções
+A 2 também
+Na 4, talvez guardar o dig[i] numa variável fora do ciclo, para não estar sempre a calcular o endereço.
+iii
+for (int i=0; i<16; i++) {
+	int* x = dig[i];
+	for (int j=0; j<dig[i].tam; j++)
+		v[k++] = x.vals[j];
+}
+
+8.
+// iniciar a estrutura dig
+#pragma omp parallel for static 
+for (int i=0; i<16; i++) {
+	dig[i].tam=0;
+	dig[i].vals = malloc(tam);
+}
+// colocar os valores na estrutura dig
+for (int i=0; i<tam; i++) {
+	int d = get_MSDigit(v[i]);
+	dig[d].vals[ dig[d].tam++ ]=v[i];
+}
+// ordenar cada elemento da estrutura dig
+#pragma omp parallel for dynamic // Porque podem ter custos diferentes
+for (int i=0;i<16;i++) {
+	rsort(dig[i].vals, dig[i].tam);
+}
+// colocar valores no vetor original
+// Como v e k seria parilhado entre várias threads, não faz sentido estar aqui a meter openMP, o custo de criar threads e meter atomic não compensa
+for (int i=0; i<16; i++) {
+	for (int j=0; j<dig[i].tam; j++)
+	v[k++] = dig[i].vals[j];
+}
+
+MPI:
+Seja x o número de processos que podemos utilizar. Dividimos 16 por x, e cada processo vai ficar com (16/x) estruturas de digitos. Por exemplo, com 4 processos, cada processo vai ficar com 4 elementos, o processo 0 com dig[0] a dig[3], processo 1 com dig[4] a dig[7], ...
+O envio de dados é, então, da estrutura dig[16], e do array inicial. Cada processo inicializa individualmente, e no segundo ciclo for verifica se d lhe pertence. Se pertencer, atualiza a sua estrutura com esse valor.
+O 3 for também é individual. 
+O 4 for já deve ser feito na thread principal, porque para guardar é preciso ter todos os arrays ordenados. A inserção deve ser ordenada.
+b)
+
+typedef struct {
+	int tam;
+	int *vals;
+} digitos;
+void rsort(int v[],int tam); // função externa
+int get_MSDigit(int val); // função externa
+// valor entre 0..15 (digito mais significativo)
+void radix_sort(int v[],int tam){
+	int k=0;
+	digitos dig[16];
+	int rank, msg;
+	MPI_Status status;
+	MPI_Init(&argc, &argv);
+	MPI_Comm_rank( MPI_COMM_WORLD, &rank );
+	int total_mpi_receivers = 4; // Valor errado, não sei como obter
+	int total_dig_por_processo = 16 / total_mpi_receivers ;
+
+	if (rank == 0) {
+		int total_dig_por_processo = 16 / total_mpi_receivers ;
+		for (int i = 0; i < total_mpi_receivers; i++) { // i = destino
+			for (int atual = i; atual < total_dig_por_processo; atual++){ 
+			MPI_Send(dig[atual], 1, sizeof(struct digit), i, 0, MPI_COMM_WORLD);
+			}
+		MPI_Send(tam, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
+		MPI_Send(v, 1, sizeof(struct digit), i, 0, MPI_COMM_WORLD);
+		}
+	}
+	else {
+		digitos dig[total_dig_por_processo] ; 
+		int tam;
+		for (int i = 0; i < total_mpi_receivers; i++) { // i = destino
+			for (int atual = i; atual < total_dig_por_processo; atual++){ 
+			MPI_Receive(dig[atual], 1, sizeof(struct digit), i, 0, 				MPI_COMM_WORLD);
+			}
+		MPI_Receive(&tam, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
+		int v[tam];
+		MPI_Receive(&v, 1, sizeof(struct digit), i, 0, MPI_COMM_WORLD);
+		}
+
+	// iniciar a estrutura dig
+	for (int i=0; i<16; i++) {
+		dig[i].tam=0;
+		dig[i].vals = malloc(tam);
+	}
+	// colocar os valores na estrutura dig
+	for (int i=0; i<tam; i++) {
+		int d = get_MSDigit(v[i]);
+		dig[d].vals[ dig[d].tam++ ]=v[i];
+	}
+	// ordenar cada elemento da estrutura dig
+	for (int i=0;i<16;i++) {
+		rsort(dig[i].vals, dig[i].tam);
+	}
+	for (int atual = i; atual < total_dig_por_processo; atual++){ 
+		// Envia ao master os arrays ordenados	
+		MPI_Send(dig[atual], 1, sizeof(struct digit), i, 0, MPI_COMM_WORLD);
+			}
+	
+	}
+	if (rank == 0) { // Deve receber coisas e guardar 
+			// Se calhar ao guardar, mete o número?
+	// colocar valores no vetor original
+	for (int i=0; i<16; i++) {
+		for (int j=0; j<dig[i].tam; j++)
+			v[k++] = dig[i].vals[j];
+		}
+	}
+
+9 O que percebi que era para fazer é:
+recebe o array in, e para cada elemento, faz tipo:
+out[pos] = in[pos] & mask;
+Logo, acho que é para implementar tipo isto:
+__global__
+void apply_mask (int *in, int *out, unsigned *mask, int mask_size) {
+unsigned tid = treadId.x + blockId.x * blockDim.x;
+	if (tid < mask_size) { // Ver se a posição está dentro do array
+		out[tid] = in[tid] & mask;
+	}
+} 
